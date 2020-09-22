@@ -1,7 +1,7 @@
 package com.ctrip.framework.apollo.portal.controller;
 
 import com.ctrip.framework.apollo.common.dto.NamespaceLockDTO;
-import com.ctrip.framework.apollo.core.enums.Env;
+import com.ctrip.framework.apollo.portal.environment.Env;
 import com.ctrip.framework.apollo.portal.entity.vo.LockInfo;
 import com.ctrip.framework.apollo.portal.service.NamespaceLockService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,7 +29,7 @@ public class NamespaceLockController {
   public LockInfo getNamespaceLockInfo(@PathVariable String appId, @PathVariable String env,
                                        @PathVariable String clusterName, @PathVariable String namespaceName) {
 
-    return namespaceLockService.getNamespaceLockInfo(appId, Env.fromString(env), clusterName, namespaceName);
+    return namespaceLockService.getNamespaceLockInfo(appId, Env.valueOf(env), clusterName, namespaceName);
 
   }
 

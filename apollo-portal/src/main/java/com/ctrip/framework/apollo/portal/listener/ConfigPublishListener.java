@@ -1,7 +1,8 @@
 package com.ctrip.framework.apollo.portal.listener;
 
 import com.ctrip.framework.apollo.common.constants.ReleaseOperation;
-import com.ctrip.framework.apollo.core.enums.Env;
+import com.ctrip.framework.apollo.portal.component.ConfigReleaseWebhookNotifier;
+import com.ctrip.framework.apollo.portal.environment.Env;
 import com.ctrip.framework.apollo.core.utils.ApolloThreadFactory;
 import com.ctrip.framework.apollo.portal.component.config.PortalConfig;
 import com.ctrip.framework.apollo.portal.component.emailbuilder.GrayPublishEmailBuilder;
@@ -32,6 +33,7 @@ public class ConfigPublishListener {
   private final MergeEmailBuilder mergeEmailBuilder;
   private final PortalConfig portalConfig;
   private final MQService mqService;
+  private final ConfigReleaseWebhookNotifier configReleaseWebhookNotifier;
 
   private ExecutorService executorService;
 
@@ -43,7 +45,8 @@ public class ConfigPublishListener {
       final RollbackEmailBuilder rollbackEmailBuilder,
       final MergeEmailBuilder mergeEmailBuilder,
       final PortalConfig portalConfig,
-      final MQService mqService) {
+      final MQService mqService,
+      final ConfigReleaseWebhookNotifier configReleaseWebhookNotifier) {
     this.releaseHistoryService = releaseHistoryService;
     this.emailService = emailService;
     this.normalPublishEmailBuilder = normalPublishEmailBuilder;
@@ -52,6 +55,7 @@ public class ConfigPublishListener {
     this.mergeEmailBuilder = mergeEmailBuilder;
     this.portalConfig = portalConfig;
     this.mqService = mqService;
+    this.configReleaseWebhookNotifier = configReleaseWebhookNotifier;
   }
 
   @PostConstruct
@@ -81,6 +85,8 @@ public class ConfigPublishListener {
         return;
       }
 
+      this.sendPublishWebHook(releaseHistory);
+
       sendPublishEmail(releaseHistory);
 
       sendPublishMsg(releaseHistory);
@@ -101,10 +107,25 @@ public class ConfigPublishListener {
       if (publishInfo.isRollbackEvent()) {
         return releaseHistoryService
             .findLatestByPreviousReleaseIdAndOperation(env, publishInfo.getPreviousReleaseId(), operation);
-      } else {
-        return releaseHistoryService.findLatestByReleaseIdAndOperation(env, publishInfo.getReleaseId(), operation);
+      }
+      return releaseHistoryService.findLatestByReleaseIdAndOperation(env, publishInfo.getReleaseId(), operation);
+
+    }
+
+    /**
+    * webhook send
+    *
+    * @param releaseHistory
+    */
+    private void sendPublishWebHook(ReleaseHistoryBO releaseHistory) {
+      Env env = publishInfo.getEnv();
+
+      String[] webHookUrls = portalConfig.webHookUrls();
+      if (!portalConfig.webHookSupportedEnvs().contains(env) || webHookUrls == null) {
+        return;
       }
 
+      configReleaseWebhookNotifier.notify(webHookUrls, env, releaseHistory);
     }
 
     private void sendPublishEmail(ReleaseHistoryBO releaseHistory) {

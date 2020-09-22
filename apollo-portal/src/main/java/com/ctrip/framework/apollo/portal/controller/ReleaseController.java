@@ -3,8 +3,7 @@ package com.ctrip.framework.apollo.portal.controller;
 import com.ctrip.framework.apollo.common.dto.ReleaseDTO;
 import com.ctrip.framework.apollo.common.exception.BadRequestException;
 import com.ctrip.framework.apollo.common.exception.NotFoundException;
-import com.ctrip.framework.apollo.common.utils.RequestPrecondition;
-import com.ctrip.framework.apollo.core.enums.Env;
+import com.ctrip.framework.apollo.portal.environment.Env;
 import com.ctrip.framework.apollo.portal.component.PermissionValidator;
 import com.ctrip.framework.apollo.portal.component.config.PortalConfig;
 import com.ctrip.framework.apollo.portal.entity.bo.ReleaseBO;
@@ -12,6 +11,7 @@ import com.ctrip.framework.apollo.portal.entity.model.NamespaceReleaseModel;
 import com.ctrip.framework.apollo.portal.entity.vo.ReleaseCompareResult;
 import com.ctrip.framework.apollo.portal.listener.ConfigPublishEvent;
 import com.ctrip.framework.apollo.portal.service.ReleaseService;
+import com.ctrip.framework.apollo.portal.spi.UserInfoHolder;
 import javax.validation.Valid;
 import javax.validation.constraints.Positive;
 import javax.validation.constraints.PositiveOrZero;
@@ -29,9 +29,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
-
-import static com.ctrip.framework.apollo.common.utils.RequestPrecondition.checkModel;
 
 @Validated
 @RestController
@@ -41,16 +38,19 @@ public class ReleaseController {
   private final ApplicationEventPublisher publisher;
   private final PortalConfig portalConfig;
   private final PermissionValidator permissionValidator;
+  private final UserInfoHolder userInfoHolder;
 
   public ReleaseController(
       final ReleaseService releaseService,
       final ApplicationEventPublisher publisher,
       final PortalConfig portalConfig,
-      final PermissionValidator permissionValidator) {
+      final PermissionValidator permissionValidator,
+      final UserInfoHolder userInfoHolder) {
     this.releaseService = releaseService;
     this.publisher = publisher;
     this.portalConfig = portalConfig;
     this.permissionValidator = permissionValidator;
+    this.userInfoHolder = userInfoHolder;
   }
 
   @PreAuthorize(value = "@permissionValidator.hasReleaseNamespacePermission(#appId, #namespaceName, #env)")
@@ -112,6 +112,16 @@ public class ReleaseController {
     return createdRelease;
   }
 
+  @GetMapping("/envs/{env}/releases/{releaseId}")
+  public ReleaseDTO get(@PathVariable String env,
+                        @PathVariable long releaseId) {
+    ReleaseDTO release = releaseService.findReleaseById(Env.valueOf(env), releaseId);
+
+    if (release == null) {
+      throw new NotFoundException("release not found");
+    }
+    return release;
+  }
 
   @GetMapping(value = "/apps/{appId}/envs/{env}/clusters/{clusterName}/namespaces/{namespaceName}/releases/all")
   public List<ReleaseBO> findAllReleases(@PathVariable String appId,
@@ -153,7 +163,8 @@ public class ReleaseController {
 
   @PutMapping(path = "/envs/{env}/releases/{releaseId}/rollback")
   public void rollback(@PathVariable String env,
-                       @PathVariable long releaseId) {
+                       @PathVariable long releaseId,
+                       @RequestParam(defaultValue = "-1") long toReleaseId) {
     ReleaseDTO release = releaseService.findReleaseById(Env.valueOf(env), releaseId);
 
     if (release == null) {
@@ -164,7 +175,11 @@ public class ReleaseController {
       throw new AccessDeniedException("Access is denied");
     }
 
-    releaseService.rollback(Env.valueOf(env), releaseId);
+    if (toReleaseId > -1) {
+      releaseService.rollbackTo(Env.valueOf(env), releaseId, toReleaseId, userInfoHolder.getUser().getUserId());
+    } else {
+      releaseService.rollback(Env.valueOf(env), releaseId, userInfoHolder.getUser().getUserId());
+    }
 
     ConfigPublishEvent event = ConfigPublishEvent.instance();
     event.withAppId(release.getAppId())

@@ -1,11 +1,9 @@
 package com.ctrip.framework.apollo.biz.utils;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
 import com.ctrip.framework.apollo.biz.entity.Item;
 import com.ctrip.framework.apollo.core.utils.StringUtils;
-
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -14,7 +12,7 @@ import org.springframework.beans.BeanUtils;
 
 public class ConfigChangeContentBuilder {
 
-  private static final Gson gson = new GsonBuilder().setDateFormat("yyyy-MM-dd HH:mm:ss").create();
+  private static final Gson GSON = new GsonBuilder().setDateFormat("yyyy-MM-dd HH:mm:ss").create();
 
   private List<Item> createItems = new LinkedList<>();
   private List<ItemPair> updateItems = new LinkedList<>();
@@ -62,7 +60,7 @@ public class ConfigChangeContentBuilder {
     for (Item item : deleteItems) {
       item.setDataChangeLastModifiedTime(now);
     }
-    return gson.toJson(this);
+    return GSON.toJson(this);
   }
 
   static class ItemPair {
@@ -84,4 +82,19 @@ public class ConfigChangeContentBuilder {
     return target;
   }
 
+  public static ConfigChangeContentBuilder convertJsonString(String content) {
+    return GSON.fromJson(content, ConfigChangeContentBuilder.class);
+  }
+
+  public List<Item> getCreateItems() {
+    return createItems;
+  }
+
+  public List<ItemPair> getUpdateItems() {
+    return updateItems;
+  }
+
+  public List<Item> getDeleteItems() {
+    return deleteItems;
+  }
 }

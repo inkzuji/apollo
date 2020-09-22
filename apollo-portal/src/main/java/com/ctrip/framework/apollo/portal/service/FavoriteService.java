@@ -6,6 +6,7 @@ import com.ctrip.framework.apollo.portal.entity.po.Favorite;
 import com.ctrip.framework.apollo.portal.repository.FavoriteRepository;
 import com.ctrip.framework.apollo.portal.spi.UserInfoHolder;
 import com.ctrip.framework.apollo.portal.spi.UserService;
+import java.util.Collections;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -67,6 +68,14 @@ public class FavoriteService {
       throw new BadRequestException("user id and app id can't be empty at the same time");
     }
 
+    if (!isUserIdEmpty) {
+      UserInfo loginUser = userInfoHolder.getUser();
+      //user can only search his own favorite app
+      if (!Objects.equals(loginUser.getUserId(), userId)) {
+        userId = loginUser.getUserId();
+      }
+    }
+
     //search by userId
     if (isAppIdEmpty && !isUserIdEmpty) {
       return favoriteRepository.findByUserIdOrderByPositionAscDataChangeCreatedTimeAsc(userId, page);
@@ -78,7 +87,7 @@ public class FavoriteService {
     }
 
     //search by userId and appId
-    return Arrays.asList(favoriteRepository.findByUserIdAndAppId(userId, appId));
+    return Collections.singletonList(favoriteRepository.findByUserIdAndAppId(userId, appId));
   }
 
 

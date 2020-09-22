@@ -66,8 +66,7 @@ public class ItemService {
       throw new NotFoundException(
           String.format("namespace not found for %s %s %s", appId, clusterName, namespaceName));
     }
-    Item item = itemRepository.findByNamespaceIdAndKey(namespace.getId(), key);
-    return item;
+    return itemRepository.findByNamespaceIdAndKey(namespace.getId(), key);
   }
 
   public Item findLastOne(String appId, String clusterName, String namespaceName) {
@@ -84,8 +83,7 @@ public class ItemService {
   }
 
   public Item findOne(long itemId) {
-    Item item = itemRepository.findById(itemId).orElse(null);
-    return item;
+    return itemRepository.findById(itemId).orElse(null);
   }
 
   public List<Item> findItemsWithoutOrdered(Long namespaceId) {
@@ -100,9 +98,8 @@ public class ItemService {
     Namespace namespace = namespaceService.findOne(appId, clusterName, namespaceName);
     if (namespace != null) {
       return findItemsWithoutOrdered(namespace.getId());
-    } else {
-      return Collections.emptyList();
     }
+    return Collections.emptyList();
   }
 
   public List<Item> findItemsWithOrdered(Long namespaceId) {
@@ -117,9 +114,8 @@ public class ItemService {
     Namespace namespace = namespaceService.findOne(appId, clusterName, namespaceName);
     if (namespace != null) {
       return findItemsWithOrdered(namespace.getId());
-    } else {
-      return Collections.emptyList();
     }
+    return Collections.emptyList();
   }
 
   public List<Item> findItemsModifiedAfterDate(long namespaceId, Date date) {

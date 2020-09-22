@@ -2,7 +2,7 @@ package com.ctrip.framework.apollo.portal.entity.model;
 
 
 import com.ctrip.framework.apollo.core.enums.ConfigFileFormat;
-import com.ctrip.framework.apollo.core.enums.Env;
+import com.ctrip.framework.apollo.portal.environment.Env;
 import com.ctrip.framework.apollo.core.utils.StringUtils;
 
 public class NamespaceTextModel implements Verifiable {
@@ -30,7 +30,7 @@ public class NamespaceTextModel implements Verifiable {
   }
 
   public Env getEnv() {
-    return Env.fromString(env);
+    return Env.valueOf(env);
   }
 
   public void setEnv(String env) {

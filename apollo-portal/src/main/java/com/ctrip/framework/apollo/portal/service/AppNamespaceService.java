@@ -111,6 +111,11 @@ public class AppNamespaceService {
       throw new BadRequestException("App not exist. AppId = " + appId);
     }
 
+    // public namespaces only allow properties format
+    if (appNamespace.isPublic()) {
+      appNamespace.setFormat(ConfigFileFormat.Properties.getValue());
+    }
+
     StringBuilder appNamespaceName = new StringBuilder();
     //add prefix postfix
     appNamespaceName
@@ -178,7 +183,7 @@ public class AppNamespaceService {
   private void checkPublicAppNamespaceGlobalUniqueness(AppNamespace appNamespace) {
     AppNamespace publicAppNamespace = findPublicAppNamespace(appNamespace.getName());
     if (publicAppNamespace != null) {
-      throw new BadRequestException("Public AppNamespace " + appNamespace.getName() + " already exists in appId: " + publicAppNamespace.getAppId() + "!");
+      throw new BadRequestException("AppNamespace " + appNamespace.getName() + " already exists as public namespace in appId: " + publicAppNamespace.getAppId() + "!");
     }
   }
 

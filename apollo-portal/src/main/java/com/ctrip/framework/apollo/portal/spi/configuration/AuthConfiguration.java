@@ -15,6 +15,7 @@ import com.ctrip.framework.apollo.portal.spi.defaultimpl.DefaultLogoutHandler;
 import com.ctrip.framework.apollo.portal.spi.defaultimpl.DefaultSsoHeartbeatHandler;
 import com.ctrip.framework.apollo.portal.spi.defaultimpl.DefaultUserInfoHolder;
 import com.ctrip.framework.apollo.portal.spi.defaultimpl.DefaultUserService;
+import com.ctrip.framework.apollo.portal.spi.ldap.ApolloLdapAuthenticationProvider;
 import com.ctrip.framework.apollo.portal.spi.ldap.FilterLdapByGroupUserSearch;
 import com.ctrip.framework.apollo.portal.spi.ldap.LdapUserService;
 import com.ctrip.framework.apollo.portal.spi.springsecurity.SpringSecurityUserInfoHolder;
@@ -45,7 +46,6 @@ import org.springframework.security.ldap.search.FilterBasedLdapUserSearch;
 import org.springframework.security.ldap.userdetails.DefaultLdapAuthoritiesPopulator;
 import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.security.web.authentication.logout.SimpleUrlLogoutSuccessHandler;
 
 import javax.servlet.Filter;
 import javax.sql.DataSource;
@@ -55,6 +55,10 @@ import java.util.Map;
 
 @Configuration
 public class AuthConfiguration {
+
+  private static final String[] BY_PASS_URLS = {"/prometheus/**", "/metrics/**", "/openapi/**",
+      "/vendor/**", "/styles/**", "/scripts/**", "/views/**", "/img/**", "/i18n/**", "/prefix-path",
+      "/health"};
 
   /**
    * spring.profiles.active = ctrip
@@ -241,7 +245,7 @@ public class AuthConfiguration {
       jdbcUserDetailsManager
           .setCreateAuthoritySql("insert into `Authorities` (Username, Authority) values (?,?)");
       jdbcUserDetailsManager
-          .setDeleteUserAuthoritiesSql("delete from `Authorities` where id = (select u.id from (select id from `Users` where Username = ?) as u)");
+          .setDeleteUserAuthoritiesSql("delete from `Authorities` where id in (select a.id from (select id from `Authorities` where Username = ?) as a)");
       jdbcUserDetailsManager
           .setChangePasswordSql("update `Users` set Password = ? where id = (select u.id from (select id from `Users` where Username = ?) as u)");
 
@@ -270,13 +274,12 @@ public class AuthConfiguration {
       http.csrf().disable();
       http.headers().frameOptions().sameOrigin();
       http.authorizeRequests()
-          .antMatchers("/openapi/**", "/vendor/**", "/styles/**", "/scripts/**", "/views/**", "/img/**").permitAll()
+          .antMatchers(BY_PASS_URLS).permitAll()
           .antMatchers("/**").hasAnyRole(USER_ROLE);
-      http.formLogin().loginPage("/signin").permitAll().failureUrl("/signin?#/error").and().httpBasic();
-      SimpleUrlLogoutSuccessHandler urlLogoutHandler = new SimpleUrlLogoutSuccessHandler();
-      urlLogoutHandler.setDefaultTargetUrl("/signin?#/logout");
+      http.formLogin().loginPage("/signin").defaultSuccessUrl("/", true).permitAll().failureUrl("/signin?#/error").and()
+          .httpBasic();
       http.logout().logoutUrl("/user/logout").invalidateHttpSession(true).clearAuthentication(true)
-          .logoutSuccessHandler(urlLogoutHandler);
+          .logoutSuccessUrl("/signin?#/logout");
       http.exceptionHandling().authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/signin"));
     }
 
@@ -373,15 +376,15 @@ public class AuthConfiguration {
             ldapProperties.getSearchFilter(), ldapContextSource);
         filterBasedLdapUserSearch.setSearchSubtree(true);
         return filterBasedLdapUserSearch;
-      } else {
-        FilterLdapByGroupUserSearch filterLdapByGroupUserSearch = new FilterLdapByGroupUserSearch(
-            ldapProperties.getBase(), ldapProperties.getSearchFilter(), ldapExtendProperties.getGroup().getGroupBase(),
-            ldapContextSource, ldapExtendProperties.getGroup().getGroupSearch(),
-            ldapExtendProperties.getMapping().getRdnKey(),
-            ldapExtendProperties.getGroup().getGroupMembership(),ldapExtendProperties.getMapping().getLoginId());
-        filterLdapByGroupUserSearch.setSearchSubtree(true);
-        return filterLdapByGroupUserSearch;
       }
+
+      FilterLdapByGroupUserSearch filterLdapByGroupUserSearch = new FilterLdapByGroupUserSearch(
+          ldapProperties.getBase(), ldapProperties.getSearchFilter(), ldapExtendProperties.getGroup().getGroupBase(),
+          ldapContextSource, ldapExtendProperties.getGroup().getGroupSearch(),
+          ldapExtendProperties.getMapping().getRdnKey(),
+          ldapExtendProperties.getGroup().getGroupMembership(),ldapExtendProperties.getMapping().getLoginId());
+      filterLdapByGroupUserSearch.setSearchSubtree(true);
+      return filterLdapByGroupUserSearch;
     }
 
     @Bean
@@ -392,9 +395,10 @@ public class AuthConfiguration {
           ldapContextSource, null);
       defaultAuthAutoConfiguration.setIgnorePartialResultException(true);
       defaultAuthAutoConfiguration.setSearchSubtree(true);
-      LdapAuthenticationProvider ldapAuthenticationProvider = new LdapAuthenticationProvider(
-          bindAuthenticator, defaultAuthAutoConfiguration);
-      return ldapAuthenticationProvider;
+      // Rewrite the logic of LdapAuthenticationProvider with ApolloLdapAuthenticationProvider,
+      // use userId in LDAP system instead of userId input by user.
+      return new ApolloLdapAuthenticationProvider(
+          bindAuthenticator, defaultAuthAutoConfiguration, ldapExtendProperties);
     }
 
     @Override
@@ -402,13 +406,12 @@ public class AuthConfiguration {
       http.csrf().disable();
       http.headers().frameOptions().sameOrigin();
       http.authorizeRequests()
-          .antMatchers("/openapi/**", "/vendor/**", "/styles/**", "/scripts/**", "/views/**", "/img/**").permitAll()
+          .antMatchers(BY_PASS_URLS).permitAll()
           .antMatchers("/**").authenticated();
-      http.formLogin().loginPage("/signin").permitAll().failureUrl("/signin?#/error").and().httpBasic();
-      SimpleUrlLogoutSuccessHandler urlLogoutHandler = new SimpleUrlLogoutSuccessHandler();
-      urlLogoutHandler.setDefaultTargetUrl("/signin?#/logout");
+      http.formLogin().loginPage("/signin").defaultSuccessUrl("/", true).permitAll().failureUrl("/signin?#/error").and()
+              .httpBasic();
       http.logout().logoutUrl("/user/logout").invalidateHttpSession(true).clearAuthentication(true)
-          .logoutSuccessHandler(urlLogoutHandler);
+              .logoutSuccessUrl("/signin?#/logout");
       http.exceptionHandling().authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/signin"));
     }
 

@@ -4,14 +4,21 @@ import com.ctrip.framework.apollo.adminservice.aop.PreAcquireNamespaceLock;
 import com.ctrip.framework.apollo.biz.entity.Commit;
 import com.ctrip.framework.apollo.biz.entity.Item;
 import com.ctrip.framework.apollo.biz.entity.Namespace;
+import com.ctrip.framework.apollo.biz.entity.Release;
 import com.ctrip.framework.apollo.biz.service.CommitService;
 import com.ctrip.framework.apollo.biz.service.ItemService;
 import com.ctrip.framework.apollo.biz.service.NamespaceService;
+import com.ctrip.framework.apollo.biz.service.ReleaseService;
 import com.ctrip.framework.apollo.biz.utils.ConfigChangeContentBuilder;
 import com.ctrip.framework.apollo.common.dto.ItemDTO;
 import com.ctrip.framework.apollo.common.exception.BadRequestException;
 import com.ctrip.framework.apollo.common.exception.NotFoundException;
 import com.ctrip.framework.apollo.common.utils.BeanUtils;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,19 +28,20 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
 public class ItemController {
 
   private final ItemService itemService;
   private final NamespaceService namespaceService;
   private final CommitService commitService;
+  private final ReleaseService releaseService;
 
-  public ItemController(final ItemService itemService, final NamespaceService namespaceService, final CommitService commitService) {
+
+  public ItemController(final ItemService itemService, final NamespaceService namespaceService, final CommitService commitService, final ReleaseService releaseService) {
     this.itemService = itemService;
     this.namespaceService = namespaceService;
     this.commitService = commitService;
+    this.releaseService = releaseService;
   }
 
   @PreAcquireNamespaceLock
@@ -47,10 +55,9 @@ public class ItemController {
     Item managedEntity = itemService.findOne(appId, clusterName, namespaceName, entity.getKey());
     if (managedEntity != null) {
       throw new BadRequestException("item already exists");
-    } else {
-      entity = itemService.save(entity);
-      builder.createItem(entity);
     }
+    entity = itemService.save(entity);
+    builder.createItem(entity);
     dto = BeanUtils.transform(ItemDTO.class, entity);
 
     Commit commit = new Commit();
@@ -72,16 +79,15 @@ public class ItemController {
                         @PathVariable("namespaceName") String namespaceName,
                         @PathVariable("itemId") long itemId,
                         @RequestBody ItemDTO itemDTO) {
+    Item managedEntity = itemService.findOne(itemId);
+    if (managedEntity == null) {
+      throw new NotFoundException("item not found for itemId " + itemId);
+    }
 
     Item entity = BeanUtils.transform(Item.class, itemDTO);
 
     ConfigChangeContentBuilder builder = new ConfigChangeContentBuilder();
-
-    Item managedEntity = itemService.findOne(itemId);
-    if (managedEntity == null) {
-      throw new BadRequestException("item not exist");
-    }
-
+   
     Item beforeUpdateItem = BeanUtils.transform(Item.class, managedEntity);
 
     //protect. only value,comment,lastModifiedBy can be modified
@@ -133,6 +139,29 @@ public class ItemController {
                                  @PathVariable("clusterName") String clusterName,
                                  @PathVariable("namespaceName") String namespaceName) {
     return BeanUtils.batchTransform(ItemDTO.class, itemService.findItemsWithOrdered(appId, clusterName, namespaceName));
+  }
+
+  @GetMapping("/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/items/deleted")
+  public List<ItemDTO> findDeletedItems(@PathVariable("appId") String appId,
+                                        @PathVariable("clusterName") String clusterName,
+                                        @PathVariable("namespaceName") String namespaceName) {
+    //get latest release time
+    Release latestActiveRelease = releaseService.findLatestActiveRelease(appId, clusterName, namespaceName);
+    List<Commit> commits;
+    if (Objects.nonNull(latestActiveRelease)) {
+      commits = commitService.find(appId, clusterName, namespaceName, latestActiveRelease.getDataChangeCreatedTime(), null);
+    } else {
+      commits = commitService.find(appId, clusterName, namespaceName, null);
+    }
+
+    if (Objects.nonNull(commits)) {
+      List<Item> deletedItems = commits.stream()
+          .map(item -> ConfigChangeContentBuilder.convertJsonString(item.getChangeSets()).getDeleteItems())
+          .flatMap(Collection::stream)
+          .collect(Collectors.toList());
+      return BeanUtils.batchTransform(ItemDTO.class, deletedItems);
+    }
+    return Collections.emptyList();
   }
 
   @GetMapping("/items/{itemId}")

@@ -15,7 +15,6 @@ import com.ctrip.framework.apollo.core.utils.ApolloThreadFactory;
 import com.ctrip.framework.apollo.tracer.Tracer;
 
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
@@ -242,8 +241,12 @@ public class InstanceConfigAuditUtil implements InitializingBean {
 
     @Override
     public boolean equals(Object o) {
-      if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
+      if (this == o) {
+          return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+          return false;
+      }
       InstanceConfigAuditModel model = (InstanceConfigAuditModel) o;
       return Objects.equals(appId, model.appId) &&
           Objects.equals(clusterName, model.clusterName) &&

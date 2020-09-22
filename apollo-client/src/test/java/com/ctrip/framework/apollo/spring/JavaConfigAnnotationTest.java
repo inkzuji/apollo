@@ -12,6 +12,7 @@ import com.ctrip.framework.apollo.spring.annotation.EnableApolloConfig;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.SettableFuture;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -80,6 +81,7 @@ public class JavaConfigAnnotationTest extends AbstractSpringIntegrationTest {
 
     mockConfig(ConfigConsts.NAMESPACE_APPLICATION, applicationConfig);
     mockConfig(FX_APOLLO_NAMESPACE, fxApolloConfig);
+    prepareYamlConfigFile(APPLICATION_YAML_NAMESPACE, readYamlContentAsConfigFileProperties("case9.yml"));
 
     TestApolloChildConfigBean bean = getBean(TestApolloChildConfigBean.class, AppConfig6.class);
 
@@ -249,7 +251,7 @@ public class JavaConfigAnnotationTest extends AbstractSpringIntegrationTest {
 
     assertEquals(1, fxApolloConfigInterestedKeys.getAllValues().size());
 
-    assertEquals(asList(Sets.newHashSet("anotherKey")), fxApolloConfigInterestedKeys.getAllValues());
+    assertEquals(Collections.singletonList(Sets.newHashSet("anotherKey")), fxApolloConfigInterestedKeys.getAllValues());
   }
 
   @Test
